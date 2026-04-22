@@ -2,6 +2,7 @@ packages:
   - 'packages/*'
 
 catalog:
+  "@yowasp/clang": 22.0.0-git20542-10
   typescript: ^6.0.3
   turbo: ^2.9.6
   vitest: ^3.2.0

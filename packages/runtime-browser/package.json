@@ -21,6 +21,7 @@
     "@cupya.me/wasm-judge-runtime-cpp": "workspace:*"
   },
   "devDependencies": {
+    "@yowasp/clang": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:",
     "@vitest/browser": "catalog:",

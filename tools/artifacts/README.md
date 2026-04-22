@@ -5,7 +5,7 @@
 현재는 두 영역을 분리해서 다룬다.
 
 - `sysroot/compiler-rt`: `wasi-sdk-32` 기준으로 재생성 가능
-- 브라우저용 `clang.js/.wasm`, `wasm-ld.js/.wasm`: 별도 toolchain 작업 필요
+- 브라우저용 Clang/LLD runtime: `@yowasp/clang` vendoring으로 재생성 가능
 
 ## 현재 범위
 
@@ -16,13 +16,11 @@
 - `sysroot.tar.gz` 패키징
 - 필수 파일 검증
 - 빌드 메타데이터 기록
+- `@yowasp/clang` 패키지 vendoring
+- vendored `@yowasp/clang` entrypoint/해시 검증
 
-아직 자동화하지 않은 항목:
-
-- `clang.js`
-- `clang.wasm`
-- `wasm-ld.js`
-- `wasm-ld.wasm`
+브라우저 런타임은 더 이상 raw `clang.js` / `clang.wasm` / `wasm-ld.js` / `wasm-ld.wasm`
+4파일 계약에 의존하지 않는다.
 
 ## 기준 버전
 
@@ -50,11 +48,19 @@ tools/artifacts/build-wasi-sdk-sysroot.sh --docker /path/to/wasi-sdk
 
 - `tools/artifacts/out/sysroot.tar.gz`
 - `tools/artifacts/out/wasi-sdk-build-info.json`
+- `packages/runtime-browser/artifacts/yowasp-clang/`
 
 검증만 다시 실행:
 
 ```bash
 tools/artifacts/verify-sysroot.sh tools/artifacts/out/sysroot.tar.gz
+tools/artifacts/verify-yowasp-clang.sh
+```
+
+`@yowasp/clang` vendoring:
+
+```bash
+tools/artifacts/vendor-yowasp-clang.sh
 ```
 
 ## 전제 조건
@@ -79,18 +85,21 @@ Docker 모드는 빌드 환경의 차이를 줄이는 용도다. 단, `wasi-sdk`
 현재 런타임은 `sysroot.tar.gz` 내부에 최소한 다음 파일들이 있어야 동작한다.
 
 - `sysroot/include/wasm32-wasi/c++/v1/iostream`
-- `sysroot/include/wasm32-wasi/__header_sysroot.h`
 - `sysroot/lib/wasm32-wasi/crt1.o`
 - `sysroot/lib/wasm32-wasi/libc.a`
 - `sysroot/lib/wasm32-wasi/libc++.a`
 - `sysroot/lib/wasm32-wasi/libc++abi.a`
 - `sysroot/lib/clang/22/include/stddef.h`
+- `sysroot/lib/clang/22/lib/wasm32-unknown-wasi/libclang_rt.builtins.a`
 
-추가로, 전체 C++ STL 지원과 `__multi3` 해결을 위해 다음 파일도 포함시키는 것을 목표로 한다.
+추가로 vendored `@yowasp/clang` artifact 디렉터리에는 최소한 다음 파일이 있어야 한다.
 
-- `sysroot/lib/clang/22/lib/wasm32-wasi/libclang_rt.builtins-wasm32.a`
+- `bundle.js`
+- `llvm-resources.tar`
+- `llvm.core.wasm`
+- `llvm.core2.wasm`
+- `llvm.core3.wasm`
+- `llvm.core4.wasm`
+- `metadata.json`
 
-주의:
-현재 `packages/runtime-browser/src/internal/cppCompiler.ts` 는 `wasm-ld` 호출 시
-`libclang_rt.builtins-wasm32.a` 를 아직 명시적으로 링크하지 않는다.
-즉 이 파일을 sysroot에 포함하는 것만으로는 충분하지 않을 수 있으며, 이후 링크 인자 보강이 필요하다.
+`metadata.json`에는 package version, source tarball sha256, entrypoint, 파일별 sha256/size를 기록한다.

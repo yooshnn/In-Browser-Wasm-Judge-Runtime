@@ -9,6 +9,9 @@ catalogs:
     '@vitest/browser':
       specifier: ^3.2.0
       version: 3.2.4
+    '@yowasp/clang':
+      specifier: 22.0.0-git20542-10
+      version: 22.0.0-git20542-10
     playwright:
       specifier: ^1.55.0
       version: 1.59.1
@@ -48,6 +51,9 @@ importers:
       '@vitest/browser':
         specifier: 'catalog:'
         version: 3.2.4(playwright@1.59.1)(vite@7.3.2)(vitest@3.2.4)
+      '@yowasp/clang':
+        specifier: 'catalog:'
+        version: 22.0.0-git20542-10
       playwright:
         specifier: 'catalog:'
         version: 1.59.1
@@ -490,6 +496,9 @@ packages:
 
   '@vitest/utils@3.2.4':
     resolution: {integrity: sha512-fB2V0JFrQSMsCo9HiSq3Ezpdv4iYaXRG1Sx8edX3MwxfyNn83mKiGzOcH+Fkxt4MHxr3y42fQi1oeAInqgX2QA==}
+
+  '@yowasp/clang@22.0.0-git20542-10':
+    resolution: {integrity: sha512-V31/z9GrJECKeACTDUyvg2llbEUiFi3bxtL5HSg7H/6sydSxdI/AoVAD9F5ozrfLjotWl0B9rghR87m+DUM/zg==}
 
   ansi-regex@5.0.1:
     resolution: {integrity: sha512-quJQXlTSUGL2LH9SUXo8VwsY4soanhgo6LNSm84E1LBcE8s3O0wpdiRzyR9z/ZZJMlMWv37qOOb9pdJlMUEKFQ==}
@@ -1058,6 +1067,8 @@ snapshots:
       '@vitest/pretty-format': 3.2.4
       loupe: 3.2.1
       tinyrainbow: 2.0.0
+
+  '@yowasp/clang@22.0.0-git20542-10': {}
 
   ansi-regex@5.0.1: {}
 

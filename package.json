@@ -5,7 +5,9 @@
   "packageManager": "pnpm@10.32.1",
   "scripts": {
     "typecheck": "turbo run typecheck",
-    "artifacts:verify-sysroot": "tools/artifacts/verify-sysroot.sh tools/artifacts/out/sysroot.tar.gz"
+    "artifacts:verify-sysroot": "tools/artifacts/verify-sysroot.sh tools/artifacts/out/sysroot.tar.gz",
+    "artifacts:vendor-yowasp-clang": "tools/artifacts/vendor-yowasp-clang.sh",
+    "artifacts:verify-yowasp-clang": "tools/artifacts/verify-yowasp-clang.sh"
   },
   "devDependencies": {
     "turbo": "catalog:"

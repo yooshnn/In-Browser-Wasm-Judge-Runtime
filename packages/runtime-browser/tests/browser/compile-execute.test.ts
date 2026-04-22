@@ -52,12 +52,10 @@ describe('compile-execute integration', () => {
       'cpp',
       {
         sourceCode: [
-          '#include <iostream>',
-          '#include <string>',
+          '#include <cstdio>',
           'int main() {',
-          '  std::string line;',
-          '  std::getline(std::cin, line);',
-          '  std::cout << line << std::endl;',
+          '  char buf[1024];',
+          '  if (fgets(buf, sizeof(buf), stdin)) printf("%s", buf);',
           '  return 0;',
           '}',
         ].join('\n'),
@@ -86,10 +84,10 @@ describe('compile-execute integration', () => {
       'cpp',
       {
         sourceCode: [
-          '#include <iostream>',
+          '#include <cstdio>',
           'int main() {',
-          '  std::cerr << "err";',
-          '  std::cout << "out";',
+          '  fprintf(stderr, "err");',
+          '  printf("out");',
           '  return 0;',
           '}',
         ].join('\n'),

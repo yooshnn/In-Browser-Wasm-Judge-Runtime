@@ -7,8 +7,6 @@ export type WorkerRequest =
       type: 'init';
       requestId: string;
       sysrootGzData: ArrayBuffer; // transferable; worker decompresses and parses
-      clangWasmData: ArrayBuffer; // transferable; passed directly to clang factory
-      ldWasmData: ArrayBuffer;    // transferable; passed directly to wasm-ld factory
     }
   | {
       type: 'compile';
@@ -41,11 +39,7 @@ export function isWorkerRequest(value: unknown): value is WorkerRequest {
   if (typeof requestId !== 'string') return false;
 
   if (type === 'init') {
-    return (
-      obj.sysrootGzData instanceof ArrayBuffer &&
-      obj.clangWasmData instanceof ArrayBuffer &&
-      obj.ldWasmData instanceof ArrayBuffer
-    );
+    return obj.sysrootGzData instanceof ArrayBuffer;
   }
 
   if (type === 'compile') {

@@ -55,11 +55,7 @@ export class BrowserCompilerPort implements CompilerPort {
   }
 
   private async sendInit(): Promise<void> {
-    const [sysrootGzData, clangWasmData, ldWasmData] = await Promise.all([
-      this.fetchBinary(this.sysrootUrl),
-      this.fetchBinary('/clang.wasm'),
-      this.fetchBinary('/wasm-ld.wasm'),
-    ]);
+    const sysrootGzData = await this.fetchBinary(this.sysrootUrl);
 
     const requestId = crypto.randomUUID();
     return new Promise((resolve, reject) => {
@@ -67,8 +63,8 @@ export class BrowserCompilerPort implements CompilerPort {
         resolve: resolve as any,
         reject,
       });
-      const request: WorkerRequest = { type: 'init', requestId, sysrootGzData, clangWasmData, ldWasmData };
-      this.worker.postMessage(request, [sysrootGzData, clangWasmData, ldWasmData]);
+      const request: WorkerRequest = { type: 'init', requestId, sysrootGzData };
+      this.worker.postMessage(request, [sysrootGzData]);
     });
   }
 

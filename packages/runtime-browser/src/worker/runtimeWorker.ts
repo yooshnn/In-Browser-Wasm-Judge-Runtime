@@ -1,41 +1,20 @@
 import type { WorkerRequest, WorkerResponse } from './workerProtocol.js';
 import { isWorkerRequest } from './workerProtocol.js';
-import { CompilerWithFlags, compileCpp, type CompilerAssets } from '../internal/cppCompiler.js';
+import { YowaspCppCompiler, compileCpp } from '../internal/yowasp/YowaspCppCompiler.js';
 import { executeWasm } from '../internal/wasiExecutor.js';
 import { storeArtifact, getArtifact } from '../internal/artifactStore.js';
 import { loadSysrootEntriesFromArchive, type SysrootEntry } from '../internal/toolchain/loadSysrootArchive.js';
+import { loadVendoredYowaspClang, type YowaspCompilerModule } from '../internal/yowasp/loadVendoredYowaspClang.js';
 
 let storedSysrootEntries: SysrootEntry[] | null = null;
-let storedClangWasm: ArrayBuffer | null = null;
-let storedLdWasm: ArrayBuffer | null = null;
-let compilerWithFlags: CompilerWithFlags | null = null;
+let yowaspCompilerModulePromise: Promise<YowaspCompilerModule> | null = null;
+let compilerWithFlags: YowaspCppCompiler | null = null;
 
-async function loadCompilerFactories(): Promise<Pick<CompilerAssets, 'clangFactory' | 'ldFactory'>> {
-  type EmFactory = (opts: object) => Promise<{ FS: any; callMain(args: string[]): number }>;
-
-  const origin = self.location.origin;
-
-  const importFromCandidates = async (moduleName: 'clang.js' | 'wasm-ld.js'): Promise<EmFactory> => {
-    const candidates = [`${origin}/`, `${origin}/assets/`];
-    let lastError: unknown;
-    for (const base of candidates) {
-      try {
-        const url = `${base}${moduleName}`;
-        // @vite-ignore suppresses static analysis; URL is derived at runtime from server origin
-        const module = await import(/* @vite-ignore */ url) as { default: EmFactory };
-        return module.default;
-      } catch (error) {
-        lastError = error;
-      }
-    }
-    throw new Error(`Failed to load ${moduleName}: ${lastError}`);
-  };
-
-  const [clangFactory, ldFactory] = await Promise.all([
-    importFromCandidates('clang.js'),
-    importFromCandidates('wasm-ld.js'),
-  ]);
-  return { clangFactory, ldFactory };
+function loadCompilerModule(): Promise<YowaspCompilerModule> {
+  if (!yowaspCompilerModulePromise) {
+    yowaspCompilerModulePromise = loadVendoredYowaspClang(self.location.origin);
+  }
+  return yowaspCompilerModulePromise;
 }
 
 self.onmessage = async (event: MessageEvent<unknown>) => {
@@ -45,8 +24,7 @@ self.onmessage = async (event: MessageEvent<unknown>) => {
   try {
     if (req.type === 'init') {
       storedSysrootEntries = await loadSysrootEntriesFromArchive(req.sysrootGzData);
-      storedClangWasm = req.clangWasmData;
-      storedLdWasm = req.ldWasmData;
+      await loadCompilerModule();
       self.postMessage({ type: 'init-result', requestId: req.requestId } satisfies WorkerResponse);
       return;
     }
@@ -54,20 +32,8 @@ self.onmessage = async (event: MessageEvent<unknown>) => {
     if (req.type === 'compile') {
       if (!compilerWithFlags) {
         if (!storedSysrootEntries) throw new Error('Worker not initialized: send init first');
-        const { clangFactory: rawClangFactory, ldFactory: rawLdFactory } = await loadCompilerFactories();
-
-        const clangWasm = storedClangWasm;
-        const ldWasm = storedLdWasm;
-
-        // Wrap factories to inject pre-fetched wasm binaries, avoiding in-worker fetch
-        const clangFactory = (opts: object) => rawClangFactory({ ...opts, wasmBinary: clangWasm });
-        const ldFactory = (opts: object) => rawLdFactory({ ...opts, wasmBinary: ldWasm });
-
-        compilerWithFlags = CompilerWithFlags.create({
-          clangFactory,
-          ldFactory,
-          sysrootEntries: storedSysrootEntries,
-        });
+        const compilerModule = await loadCompilerModule();
+        compilerWithFlags = new YowaspCppCompiler(compilerModule, storedSysrootEntries);
       }
 
       const internal = await compileCpp(compilerWithFlags, req.sourceCode, req.flags);

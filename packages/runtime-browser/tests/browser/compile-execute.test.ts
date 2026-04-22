@@ -110,4 +110,38 @@ describe('compile-execute integration', () => {
     expect(success.stdout).toBe('out');
     expect(success.stderr).toBe('err');
   });
+
+  it('execute: std::getline path links and echoes stdin', async () => {
+    const compileResult = await compiler.compile(
+      'cpp',
+      {
+        sourceCode: [
+          '#include <iostream>',
+          '#include <string>',
+          'int main() {',
+          '  std::string line;',
+          '  if (std::getline(std::cin, line)) {',
+          '    std::cout << line << "\\n";',
+          '  }',
+          '  return 0;',
+          '}',
+        ].join('\n'),
+      },
+      { flags: [] },
+    );
+
+    expect(compileResult.success).toBe(true);
+    const { artifact } = compileResult as CompileSuccess;
+
+    const execResult = await executor.execute(
+      artifact,
+      'stl-input',
+      { timeLimitMs: 5000, memoryLimitBytes: 256 * 1024 * 1024 },
+      { stdoutLimitBytes: 1024 * 1024, stderrLimitBytes: 1024 * 1024 },
+    );
+
+    expect(execResult.success).toBe(true);
+    const success = execResult as ExecutionSuccess;
+    expect(success.stdout).toBe('stl-input\n');
+  });
 });

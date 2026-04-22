@@ -12,13 +12,17 @@
     }
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:browser": "vitest run --config vitest.browser.config.ts"
   },
   "dependencies": {
     "@cupya.me/wasm-judge-runtime-core": "workspace:*",
     "@cupya.me/wasm-judge-runtime-cpp": "workspace:*"
   },
   "devDependencies": {
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "@vitest/browser": "catalog:",
+    "playwright": "catalog:"
   }
 }

@@ -11,11 +11,23 @@ type PendingRequest = {
 
 export class BrowserCompilerPort implements CompilerPort {
   private readonly pending = new Map<string, PendingRequest>();
+  private initPromise: Promise<void> | null = null;
 
-  constructor(private readonly worker: Worker) {
+  constructor(
+    private readonly worker: Worker,
+    private readonly sysrootUrl = '/sysroot.tar.gz',
+  ) {
     worker.addEventListener('message', (event: MessageEvent<unknown>) => {
       if (!isWorkerResponse(event.data)) return;
       const response = event.data as WorkerResponse;
+
+      if (response.type === 'init-result') {
+        const entry = this.pending.get(response.requestId);
+        if (!entry) return;
+        this.pending.delete(response.requestId);
+        entry.resolve(undefined as any);
+        return;
+      }
 
       const entry = this.pending.get(response.requestId);
       if (!entry) return;
@@ -26,6 +38,37 @@ export class BrowserCompilerPort implements CompilerPort {
       } else if (response.type === 'internal-error') {
         entry.reject(new Error(response.message));
       }
+    });
+  }
+
+  private async ensureInit(): Promise<void> {
+    if (!this.initPromise) {
+      this.initPromise = this.sendInit();
+    }
+    return this.initPromise;
+  }
+
+  private async fetchBinary(url: string): Promise<ArrayBuffer> {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Failed to fetch ${url}: HTTP ${response.status}`);
+    return response.arrayBuffer();
+  }
+
+  private async sendInit(): Promise<void> {
+    const [sysrootGzData, clangWasmData, ldWasmData] = await Promise.all([
+      this.fetchBinary(this.sysrootUrl),
+      this.fetchBinary('/clang.wasm'),
+      this.fetchBinary('/wasm-ld.wasm'),
+    ]);
+
+    const requestId = crypto.randomUUID();
+    return new Promise((resolve, reject) => {
+      this.pending.set(requestId, {
+        resolve: resolve as any,
+        reject,
+      });
+      const request: WorkerRequest = { type: 'init', requestId, sysrootGzData, clangWasmData, ldWasmData };
+      this.worker.postMessage(request, [sysrootGzData, clangWasmData, ldWasmData]);
     });
   }
 
@@ -43,6 +86,8 @@ export class BrowserCompilerPort implements CompilerPort {
         elapsedMs: 0,
       };
     }
+
+    await this.ensureInit();
 
     const requestId = crypto.randomUUID();
     const request: WorkerRequest = {

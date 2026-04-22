@@ -1,4 +1,6 @@
 import type { CompileFailure, CompileSuccess } from '@cupya.me/wasm-judge-runtime-core';
+import { buildClangArgs, buildLdArgs } from './toolchain/buildToolchainArgs.js';
+import { resolveToolchainLayout } from './toolchain/resolveToolchainLayout.js';
 
 type EmFS = {
   mkdirTree(path: string): void;
@@ -50,11 +52,15 @@ function populateSysroot(fs: EmFS, entries: SysrootEntry[]): void {
 
 // Compiler implementation with flag support for Phase 1+
 export class CompilerWithFlags {
+  private readonly toolchainLayout;
+
   private constructor(
     private readonly clangFactory: EmFactory,
     private readonly ldFactory: EmFactory,
     private readonly sysrootEntries: SysrootEntry[],
-  ) {}
+  ) {
+    this.toolchainLayout = resolveToolchainLayout(sysrootEntries);
+  }
 
   static create(assets: CompilerAssets): CompilerWithFlags {
     return new CompilerWithFlags(assets.clangFactory, assets.ldFactory, assets.sysrootEntries);
@@ -87,21 +93,12 @@ export class CompilerWithFlags {
     clang.FS.mkdirTree('/work');
     clang.FS.writeFile('/work/source.cpp', sourceCode);
 
-    const clangArgs = [
-      '--target=wasm32-wasi',
-      '--sysroot=/sysroot',
-      '-resource-dir', '/sysroot/lib/clang/18',
-      '-isystem', '/sysroot/include/wasm32-wasi/c++/v1',
-      '-isystem', '/sysroot/include/wasm32-wasi',
-      '-std=c++17',
-      '-fno-finite-loops',
-      '-x', 'c++',
-      '-c', '/work/source.cpp',
-      '-o', '/work/source.o',
-      '-O1',
-      '-fno-exceptions',
-      ...flags, // user flags: appended last, takes precedence over base preset
-    ];
+    const clangArgs = buildClangArgs(
+      this.toolchainLayout,
+      '/work/source.cpp',
+      '/work/source.o',
+      flags,
+    );
 
     const clangExit = clang.callMain(clangArgs);
 
@@ -114,15 +111,11 @@ export class CompilerWithFlags {
     ld.FS.mkdirTree('/work');
     ld.FS.writeFile('/work/source.o', objData);
 
-    const ldExit = ld.callMain([
+    const ldExit = ld.callMain(buildLdArgs(
+      this.toolchainLayout,
       '/work/source.o',
-      '/sysroot/lib/wasm32-wasi/crt1.o',
-      '-L/sysroot/lib/wasm32-wasi',
-      '-lc',
-      '-lc++',
-      '-lc++abi',
-      '-o', '/work/output.wasm',
-    ]);
+      '/work/output.wasm',
+    ));
 
     if (ldExit !== 0) {
       return { status: 'ce', stderr: ldStderr.join('\n') };

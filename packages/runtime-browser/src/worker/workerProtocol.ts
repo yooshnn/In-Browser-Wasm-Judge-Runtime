@@ -4,6 +4,13 @@ import type { ExecutionLimits, JudgePolicy } from '@cupya.me/wasm-judge-runtime-
 
 export type WorkerRequest =
   | {
+      type: 'init';
+      requestId: string;
+      sysrootGzData: ArrayBuffer; // transferable; worker decompresses and parses
+      clangWasmData: ArrayBuffer; // transferable; passed directly to clang factory
+      ldWasmData: ArrayBuffer;    // transferable; passed directly to wasm-ld factory
+    }
+  | {
       type: 'compile';
       requestId: string;
       language: 'cpp';
@@ -20,6 +27,7 @@ export type WorkerRequest =
     };
 
 export type WorkerResponse =
+  | { type: 'init-result'; requestId: string }
   | { type: 'compile-result'; requestId: string; result: CompileSuccess | CompileFailure }
   | { type: 'execute-result'; requestId: string; result: ExecutionSuccess | ExecutionFailure }
   | { type: 'internal-error'; requestId: string; message: string };
@@ -31,6 +39,14 @@ export function isWorkerRequest(value: unknown): value is WorkerRequest {
   const requestId = obj.requestId;
 
   if (typeof requestId !== 'string') return false;
+
+  if (type === 'init') {
+    return (
+      obj.sysrootGzData instanceof ArrayBuffer &&
+      obj.clangWasmData instanceof ArrayBuffer &&
+      obj.ldWasmData instanceof ArrayBuffer
+    );
+  }
 
   if (type === 'compile') {
     return (
@@ -61,5 +77,5 @@ export function isWorkerResponse(value: unknown): value is WorkerResponse {
   const type = obj.type;
   const requestId = obj.requestId;
 
-  return typeof requestId === 'string' && ['compile-result', 'execute-result', 'internal-error'].includes(String(type));
+  return typeof requestId === 'string' && ['init-result', 'compile-result', 'execute-result', 'internal-error'].includes(String(type));
 }

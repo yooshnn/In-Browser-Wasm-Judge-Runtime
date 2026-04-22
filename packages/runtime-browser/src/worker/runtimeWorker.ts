@@ -3,57 +3,12 @@ import { isWorkerRequest } from './workerProtocol.js';
 import { CompilerWithFlags, compileCpp, type CompilerAssets } from '../internal/cppCompiler.js';
 import { executeWasm } from '../internal/wasiExecutor.js';
 import { storeArtifact, getArtifact } from '../internal/artifactStore.js';
-
-type SysrootEntry = { path: string; data: Uint8Array };
+import { loadSysrootEntriesFromArchive, type SysrootEntry } from '../internal/toolchain/loadSysrootArchive.js';
 
 let storedSysrootEntries: SysrootEntry[] | null = null;
 let storedClangWasm: ArrayBuffer | null = null;
 let storedLdWasm: ArrayBuffer | null = null;
 let compilerWithFlags: CompilerWithFlags | null = null;
-
-function parseSysrootTar(decompressed: Uint8Array): SysrootEntry[] {
-  const entries: SysrootEntry[] = [];
-  let offset = 0;
-  while (offset + 512 <= decompressed.byteLength) {
-    const header = decompressed.subarray(offset, offset + 512);
-    if (header.every((b) => b === 0)) break;
-    const name = new TextDecoder().decode(header.subarray(0, 100)).replace(/\0/g, '');
-    const prefix = new TextDecoder().decode(header.subarray(345, 500)).replace(/\0/g, '');
-    const sizeText = new TextDecoder().decode(header.subarray(124, 136)).replace(/\0/g, '').trim();
-    const size = sizeText === '' ? 0 : Number.parseInt(sizeText, 8);
-    const typeflag = header[156];
-    const fullName = prefix ? `${prefix}/${name}` : name;
-    offset += 512;
-    const fileData = decompressed.slice(offset, offset + size);
-    if ((typeflag === 0 || typeflag === 48) && fullName !== '') {
-      // strip the 'sysroot/' tar root prefix so populateSysroot writes to /sysroot/include/...
-      const stripped = fullName.startsWith('sysroot/') ? fullName.slice('sysroot'.length) : `/${fullName}`;
-      entries.push({ path: stripped, data: fileData });
-    }
-    offset += Math.ceil(size / 512) * 512;
-  }
-  return entries;
-}
-
-async function decompressGzIfNeeded(data: ArrayBuffer): Promise<Uint8Array> {
-  const view = new DataView(data);
-  const isGzip = view.byteLength >= 2 && view.getUint8(0) === 0x1f && view.getUint8(1) === 0x8b;
-  if (!isGzip) return new Uint8Array(data); // browser already decompressed via Content-Encoding: gzip
-
-  const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream('gzip'));
-  const reader = stream.getReader();
-  const chunks: Uint8Array[] = [];
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    if (value) chunks.push(value);
-  }
-  const total = chunks.reduce((s, c) => s + c.byteLength, 0);
-  const result = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) { result.set(chunk, offset); offset += chunk.byteLength; }
-  return result;
-}
 
 async function loadCompilerFactories(): Promise<Pick<CompilerAssets, 'clangFactory' | 'ldFactory'>> {
   type EmFactory = (opts: object) => Promise<{ FS: any; callMain(args: string[]): number }>;
@@ -89,8 +44,7 @@ self.onmessage = async (event: MessageEvent<unknown>) => {
 
   try {
     if (req.type === 'init') {
-      const decompressed = await decompressGzIfNeeded(req.sysrootGzData);
-      storedSysrootEntries = parseSysrootTar(decompressed);
+      storedSysrootEntries = await loadSysrootEntriesFromArchive(req.sysrootGzData);
       storedClangWasm = req.clangWasmData;
       storedLdWasm = req.ldWasmData;
       self.postMessage({ type: 'init-result', requestId: req.requestId } satisfies WorkerResponse);

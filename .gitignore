@@ -7,6 +7,9 @@ dist/
 *.tsbuildinfo
 .turbo/
 
+# Wasm artifacts (large binary files)
+packages/runtime-browser/artifacts/
+
 # IDE
 .vscode/
 .idea/

@@ -9,6 +9,8 @@ dist/
 
 # Wasm artifacts (large binary files)
 packages/runtime-browser/artifacts/
+tools/artifacts/build/
+tools/artifacts/out/
 
 # IDE
 .vscode/

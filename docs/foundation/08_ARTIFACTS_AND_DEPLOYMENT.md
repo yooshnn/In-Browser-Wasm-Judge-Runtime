@@ -40,6 +40,20 @@ runtime-browser/
 
 `runtime-cpp`는 이 artifacts를 직접 소유하기보다, preset과 manifest 해석 규약을 제공하는 역할에 집중한다.
 
+## 재빌드 기준 버전
+
+브라우저용 toolchain과 sysroot를 재생성할 때는 입력 버전을 명시적으로 고정해야 한다.
+현재 기준점은 `wasi-sdk-32` 이다.
+
+- `wasi-sdk`: `32.0`
+- `wasi-libc`: `2fc32bc81b9f`
+- `llvm`: `4434dabb6991`
+- `llvm-version`: `22.1.0`
+- `config`: `f992bcc08219`
+
+이 값들은 artifact build script, `manifest.json`, 검증 로그에 함께 남겨서
+"어떤 입력으로 현재 산출물이 만들어졌는가"를 추적 가능하게 유지해야 한다.
+
 ## 장기 전략
 
 장기적으로는 artifacts를 패키지 바깥의 배포 자산으로 분리 가능해야 한다.

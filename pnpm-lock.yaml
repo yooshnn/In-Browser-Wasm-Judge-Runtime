@@ -38,6 +38,9 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 3.2.4(@vitest/browser@3.2.4)
 
   packages/runtime-browser:
     dependencies:

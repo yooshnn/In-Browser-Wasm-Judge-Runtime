@@ -1,4 +1,4 @@
-import { createJudgeRuntime } from '../src/index.ts';
+import { createJudgeRuntime } from '@cupya.me/wasm-judge-runtime-browser';
 
 const DEFAULT_LIMITS = {
   timeLimitMs: 5000,

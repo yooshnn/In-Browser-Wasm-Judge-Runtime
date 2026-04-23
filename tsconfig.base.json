@@ -3,6 +3,7 @@
   "compilerOptions": {
     "strict": true,
     "exactOptionalPropertyTypes": true,
+    "ignoreDeprecations": "6.0",
     "moduleResolution": "NodeNext",
     "module": "NodeNext",
     "target": "ES2022",

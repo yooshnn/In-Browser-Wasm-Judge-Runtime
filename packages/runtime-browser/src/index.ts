@@ -2,6 +2,7 @@ import type { RuntimeHealth } from '@cupya.me/wasm-judge-runtime-core';
 import { createCheckerRunner } from '@cupya.me/wasm-judge-runtime-core';
 import { BrowserCompilerPort } from './adapters/compiler/BrowserCompilerPort.js';
 import { BrowserExecutorPort } from './adapters/executor/BrowserExecutorPort.js';
+import { BrowserRuntimeHealthPort } from './adapters/health/BrowserRuntimeHealthPort.js';
 import type { JudgeRuntime, RuntimeBootstrapOptions } from './publicTypes.js';
 import { resolveBootstrapOptions } from './bootstrap/resolveBootstrapOptions.js';
 import { BrowserJudgeRuntime } from './runtime/BrowserJudgeRuntime.js';
@@ -31,19 +32,8 @@ export async function createJudgeRuntime(
   const executor = new BrowserExecutorPort(resolved.createExecutionWorker);
   const checker = createCheckerRunner(resolved.checkers);
 
-  const getHealth = async (): Promise<RuntimeHealth> => ({
-    ready: artifactsState.compilerLoaded && artifactsState.sysrootLoaded,
-    version: resolved.version,
-    capabilities: {
-      languages: ['cpp'],
-      stdioJudge: true,
-      jsChecker: true,
-    },
-    artifacts: {
-      compilerLoaded: artifactsState.compilerLoaded,
-      sysrootLoaded: artifactsState.sysrootLoaded,
-    },
-  });
+  const healthPort = new BrowserRuntimeHealthPort(artifactsState, resolved.version);
+  const getHealth = (): Promise<RuntimeHealth> => healthPort.getHealth();
 
   const runtime = new BrowserJudgeRuntime(
     { compiler, executor, checker },

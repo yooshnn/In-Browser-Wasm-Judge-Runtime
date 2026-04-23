@@ -1,23 +1,6 @@
-import type { ExecutionFailure } from '@cupya.me/wasm-judge-runtime-core';
 import { executeWasm } from '../internal/wasiExecutor.js';
 import type { ExecutionWorkerResponse } from './executionWorkerProtocol.js';
-import { isExecutionWorkerRequest } from './executionWorkerProtocol.js';
-
-function internalError(requestId: string, reason: string): ExecutionWorkerResponse {
-  return {
-    type: 'internal-error',
-    requestId,
-    result: {
-      success: false,
-      status: 'internal_error',
-      stdout: '',
-      stderr: reason,
-      exitCode: null,
-      elapsedMs: 0,
-      reason,
-    } satisfies ExecutionFailure,
-  };
-}
+import { executionInternalError, isExecutionWorkerRequest } from './executionWorkerProtocol.js';
 
 self.onmessage = async (event: MessageEvent<unknown>) => {
   if (!isExecutionWorkerRequest(event.data)) return;
@@ -28,6 +11,6 @@ self.onmessage = async (event: MessageEvent<unknown>) => {
     self.postMessage({ type: 'execute-result', requestId: req.requestId, result } satisfies ExecutionWorkerResponse);
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
-    self.postMessage(internalError(req.requestId, reason));
+    self.postMessage(executionInternalError(req.requestId, reason));
   }
 };

@@ -1,22 +1,14 @@
 import type { ExecutorPort } from '@cupya.me/wasm-judge-runtime-core';
 import type { ExecutableArtifact, ExecutionLimits, JudgePolicy } from '@cupya.me/wasm-judge-runtime-core';
-import type { ExecutionFailure, ExecutionResult } from '@cupya.me/wasm-judge-runtime-core';
+import type { ExecutionResult } from '@cupya.me/wasm-judge-runtime-core';
 import type { ExecutionWorkerRequest, ExecutionWorkerResponse } from '../../worker/executionWorkerProtocol.js';
-import { isExecutionWorkerResponse } from '../../worker/executionWorkerProtocol.js';
+import {
+  executionInternalErrorResult,
+  executionResponseResult,
+  isExecutionWorkerResponse,
+} from '../../worker/executionWorkerProtocol.js';
 
 type WorkerFactory = () => Worker;
-
-function internalErrorResult(reason: string): ExecutionFailure {
-  return {
-    success: false,
-    status: 'internal_error',
-    stdout: '',
-    stderr: reason,
-    exitCode: null,
-    elapsedMs: 0,
-    reason,
-  };
-}
 
 export class BrowserExecutorPort implements ExecutorPort {
   constructor(
@@ -64,26 +56,26 @@ export class BrowserExecutorPort implements ExecutorPort {
       worker.addEventListener('message', (event: MessageEvent<unknown>) => {
         if (settled) return;
         if (!isExecutionWorkerResponse(event.data)) {
-          finish(internalErrorResult('Malformed response from execution worker'));
+          finish(executionInternalErrorResult('Malformed response from execution worker'));
           return;
         }
 
         const response = event.data as ExecutionWorkerResponse;
         if (response.requestId !== requestId) {
-          finish(internalErrorResult('Mismatched response from execution worker'));
+          finish(executionInternalErrorResult('Mismatched response from execution worker'));
           return;
         }
 
-        finish(response.result);
+        finish(executionResponseResult(response));
       });
 
       worker.addEventListener('messageerror', () => {
-        finish(internalErrorResult('Execution worker emitted messageerror'));
+        finish(executionInternalErrorResult('Execution worker emitted messageerror'));
       });
 
       worker.addEventListener('error', (event: ErrorEvent) => {
         const reason = event.message || 'Execution worker crashed';
-        finish(internalErrorResult(reason));
+        finish(executionInternalErrorResult(reason));
       });
 
       timeoutId = setTimeout(() => {

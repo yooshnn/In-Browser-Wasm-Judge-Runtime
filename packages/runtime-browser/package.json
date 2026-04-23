@@ -13,6 +13,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
+    "sample": "vite --config sample/vite.config.ts",
     "test:unit": "vitest run --config vitest.unit.config.ts",
     "test:browser": "vitest run --config vitest.browser.config.ts"
   },
@@ -23,6 +24,7 @@
   "devDependencies": {
     "@yowasp/clang": "catalog:",
     "typescript": "catalog:",
+    "vite": "catalog:",
     "vitest": "catalog:",
     "@vitest/browser": "catalog:",
     "playwright": "catalog:"

@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Wasm Judge Runtime Browser Sample</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <div>
+          <h1>In-Browser Wasm Judge Runtime</h1>
+          <p class="lede">
+            A small browser-only harness for validating the real C++ judge runtime,
+            worker bootstrap, health, custom checker, and failure mapping.
+          </p>
+        </div>
+        <div class="runtime-card">
+          <span id="runtime-dot" class="dot dot-idle"></span>
+          <div>
+            <strong id="runtime-state">Not bootstrapped</strong>
+            <small id="runtime-detail">Click Bootstrap Runtime first.</small>
+          </div>
+        </div>
+      </section>
+
+      <section class="toolbar">
+        <button id="bootstrap-button" class="primary">Bootstrap Runtime</button>
+        <button id="health-button">Health</button>
+        <button id="judge-button" class="primary">Run Judge</button>
+        <button id="terminate-button">Terminate</button>
+      </section>
+
+      <section class="grid">
+        <aside class="panel presets-panel">
+          <div class="panel-title">
+            <h2>Use Cases</h2>
+            <p>Pick a scenario, then run judge.</p>
+          </div>
+          <div id="presets" class="preset-list"></div>
+        </aside>
+
+        <section class="panel editor-panel">
+          <div class="panel-title">
+            <h2>Request</h2>
+            <p>Edit source, tests, limits, and checker.</p>
+          </div>
+
+          <label class="field">
+            <span>C++ source</span>
+            <textarea id="source-input" spellcheck="false"></textarea>
+          </label>
+
+          <label class="field multi-field">
+            <span>testcases json</span>
+            <textarea id="tests-input" spellcheck="false"></textarea>
+          </label>
+
+          <div class="form-row compact">
+            <label class="field">
+              <span>Checker</span>
+              <select id="checker-select">
+                <option value="exact">exact</option>
+                <option value="contains-ok">custom: contains-ok</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Time limit ms</span>
+              <input id="time-limit-input" type="number" min="1" step="1" />
+            </label>
+            <label class="field">
+              <span>Memory bytes</span>
+              <input id="memory-limit-input" type="number" min="65536" step="65536" />
+            </label>
+            <label class="field">
+              <span>stdout limit bytes</span>
+              <input id="stdout-limit-input" type="number" min="1" step="1" />
+            </label>
+          </div>
+        </section>
+
+        <section class="panel result-panel">
+          <div class="panel-title">
+            <h2>Result</h2>
+            <p>Summary and first testcase fields.</p>
+          </div>
+          <div id="summary-cards" class="summary-cards"></div>
+          <pre id="result-output" class="code-block">{}</pre>
+        </section>
+
+        <section class="panel log-panel">
+          <div class="panel-title">
+            <h2>Event Log</h2>
+            <p>Bootstrap, health, judge, and errors.</p>
+          </div>
+          <div class="log-actions">
+            <button id="clear-log-button">Clear Log</button>
+          </div>
+          <ol id="log-list" class="log-list"></ol>
+        </section>
+      </section>
+    </main>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

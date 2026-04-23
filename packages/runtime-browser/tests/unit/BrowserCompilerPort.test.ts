@@ -133,4 +133,32 @@ describe('BrowserCompilerPort', () => {
 
     vi.unstubAllGlobals();
   });
+
+  it('dispose() rejects pending compile and makes future compiles fail fast', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      arrayBuffer: async () => new ArrayBuffer(8),
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const worker = new FakeWorker();
+    const compiler = new BrowserCompilerPort(worker as unknown as Worker);
+    await compiler.init();
+
+    worker.autoRespondToCompile = false;
+    const inFlight = compiler.compile('cpp', { sourceCode: 'int main() { return 0; }' }, { flags: [] });
+
+    // Ensure the async compile path has a chance to register its pending entry.
+    await Promise.resolve();
+
+    compiler.dispose(new Error('disposed'));
+
+    await expect(inFlight).rejects.toThrow(/disposed/i);
+    await expect(
+      compiler.compile('cpp', { sourceCode: 'int main() { return 0; }' }, { flags: [] }),
+    ).rejects.toThrow(/disposed/i);
+
+    vi.unstubAllGlobals();
+  });
 });

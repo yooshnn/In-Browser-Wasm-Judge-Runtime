@@ -82,6 +82,10 @@ export class BrowserCompilerPort implements CompilerPort {
     return this.ensureInit();
   }
 
+  dispose(reason: Error = new Error('Compiler port disposed')): void {
+    this.failAllPending(reason);
+  }
+
   private failAllPending(error: Error): void {
     if (!this.fatalError) this.fatalError = error;
     for (const entry of this.pending.values()) {

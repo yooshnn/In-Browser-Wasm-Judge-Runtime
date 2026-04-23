@@ -1,3 +1,3 @@
 export type ExecutableArtifact = {
-  id: string;
+  wasmBinary: Uint8Array;
 };

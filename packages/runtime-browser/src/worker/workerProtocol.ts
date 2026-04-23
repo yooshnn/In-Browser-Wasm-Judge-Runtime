@@ -1,6 +1,4 @@
 import type { CompileSuccess, CompileFailure } from '@cupya.me/wasm-judge-runtime-core';
-import type { ExecutionSuccess, ExecutionFailure } from '@cupya.me/wasm-judge-runtime-core';
-import type { ExecutionLimits, JudgePolicy } from '@cupya.me/wasm-judge-runtime-core';
 
 export type WorkerRequest =
   | {
@@ -14,20 +12,11 @@ export type WorkerRequest =
       language: 'cpp';
       sourceCode: string;
       flags: string[];
-    }
-  | {
-      type: 'execute';
-      requestId: string;
-      artifactId: string;
-      stdin: string;
-      limits: ExecutionLimits;
-      policy: Pick<JudgePolicy, 'stdoutLimitBytes' | 'stderrLimitBytes'>;
     };
 
 export type WorkerResponse =
   | { type: 'init-result'; requestId: string }
   | { type: 'compile-result'; requestId: string; result: CompileSuccess | CompileFailure }
-  | { type: 'execute-result'; requestId: string; result: ExecutionSuccess | ExecutionFailure }
   | { type: 'internal-error'; requestId: string; message: string };
 
 export function isWorkerRequest(value: unknown): value is WorkerRequest {
@@ -51,17 +40,6 @@ export function isWorkerRequest(value: unknown): value is WorkerRequest {
     );
   }
 
-  if (type === 'execute') {
-    return (
-      typeof obj.artifactId === 'string' &&
-      typeof obj.stdin === 'string' &&
-      typeof obj.limits === 'object' &&
-      obj.limits !== null &&
-      typeof obj.policy === 'object' &&
-      obj.policy !== null
-    );
-  }
-
   return false;
 }
 
@@ -71,5 +49,5 @@ export function isWorkerResponse(value: unknown): value is WorkerResponse {
   const type = obj.type;
   const requestId = obj.requestId;
 
-  return typeof requestId === 'string' && ['init-result', 'compile-result', 'execute-result', 'internal-error'].includes(String(type));
+  return typeof requestId === 'string' && ['init-result', 'compile-result', 'internal-error'].includes(String(type));
 }

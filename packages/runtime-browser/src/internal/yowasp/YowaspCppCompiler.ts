@@ -4,15 +4,13 @@ import { resolveToolchainLayout } from '../toolchain/resolveToolchainLayout.js';
 import type { SysrootEntry } from '../toolchain/loadSysrootArchive.js';
 import type { YowaspCompilerModule, YowaspTree } from './loadVendoredYowaspClang.js';
 
-export type InternalCompileSuccess = CompileSuccess & {
-  wasmBinary: Uint8Array;
-};
-
 type CompileResult = {
   status: 'ok' | 'ce';
   wasmBinary?: Uint8Array;
   stderr: string;
 };
+
+const MAX_EXECUTABLE_ARTIFACT_BYTES = 16 * 1024 * 1024;
 
 type YowaspExitLike = Error & {
   code?: number;
@@ -168,7 +166,7 @@ export async function compileCpp(
   compiler: YowaspCppCompiler,
   sourceCode: string,
   flags: string[],
-): Promise<InternalCompileSuccess | CompileFailure> {
+): Promise<CompileSuccess | CompileFailure> {
   const start = performance.now();
 
   try {
@@ -195,16 +193,25 @@ export async function compileCpp(
       };
     }
 
+    if (result.wasmBinary.byteLength > MAX_EXECUTABLE_ARTIFACT_BYTES) {
+      return {
+        success: false,
+        stdout: '',
+        stderr: `Compiled wasm exceeds artifact size cap (${MAX_EXECUTABLE_ARTIFACT_BYTES} bytes)`,
+        errors: [`Compiled wasm exceeds artifact size cap (${MAX_EXECUTABLE_ARTIFACT_BYTES} bytes)`],
+        elapsedMs,
+      };
+    }
+
     return {
       success: true,
       stdout: '',
       stderr: '',
       warnings: [],
       artifact: {
-        id: crypto.randomUUID(),
+        wasmBinary: result.wasmBinary,
       },
       elapsedMs,
-      wasmBinary: result.wasmBinary,
     };
   } catch (error) {
     const elapsedMs = Math.round(performance.now() - start);

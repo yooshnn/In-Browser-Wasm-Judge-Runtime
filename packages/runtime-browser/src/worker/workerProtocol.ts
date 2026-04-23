@@ -5,6 +5,7 @@ export type WorkerRequest =
       type: 'init';
       requestId: string;
       sysrootGzData: ArrayBuffer; // transferable; worker decompresses and parses
+      yowaspClangBundleUrl: string;
     }
   | {
       type: 'compile';
@@ -28,7 +29,7 @@ export function isWorkerRequest(value: unknown): value is WorkerRequest {
   if (typeof requestId !== 'string') return false;
 
   if (type === 'init') {
-    return obj.sysrootGzData instanceof ArrayBuffer;
+    return obj.sysrootGzData instanceof ArrayBuffer && typeof obj.yowaspClangBundleUrl === 'string';
   }
 
   if (type === 'compile') {

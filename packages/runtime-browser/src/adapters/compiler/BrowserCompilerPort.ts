@@ -4,18 +4,37 @@ import type { CompileSuccess, CompileFailure } from '@cupya.me/wasm-judge-runtim
 import type { WorkerRequest, WorkerResponse } from '../../worker/workerProtocol.js';
 import { isWorkerResponse } from '../../worker/workerProtocol.js';
 
-type PendingRequest = {
+type PendingInit = {
+  kind: 'init';
+  resolve: () => void;
+  reject: (error: Error) => void;
+};
+
+type PendingCompile = {
+  kind: 'compile';
   resolve: (result: CompileSuccess | CompileFailure) => void;
   reject: (error: Error) => void;
 };
 
+type PendingRequest = PendingInit | PendingCompile;
+
+function defaultYowaspClangBundleUrl(): string {
+  const href = globalThis.location?.href;
+  if (typeof href === 'string') {
+    return new URL('/yowasp-clang/bundle.js', href).href;
+  }
+  return '/yowasp-clang/bundle.js';
+}
+
 export class BrowserCompilerPort implements CompilerPort {
   private readonly pending = new Map<string, PendingRequest>();
   private initPromise: Promise<void> | null = null;
+  private fatalError: Error | null = null;
 
   constructor(
     private readonly worker: Worker,
     private readonly sysrootUrl = '/sysroot.tar.gz',
+    private readonly yowaspClangBundleUrl = defaultYowaspClangBundleUrl(),
   ) {
     worker.addEventListener('message', (event: MessageEvent<unknown>) => {
       if (!isWorkerResponse(event.data)) return;
@@ -25,7 +44,11 @@ export class BrowserCompilerPort implements CompilerPort {
         const entry = this.pending.get(response.requestId);
         if (!entry) return;
         this.pending.delete(response.requestId);
-        entry.resolve(undefined as any);
+        if (entry.kind === 'init') {
+          entry.resolve();
+        } else {
+          entry.reject(new Error('Compiler worker returned init-result for a non-init request'));
+        }
         return;
       }
 
@@ -34,14 +57,41 @@ export class BrowserCompilerPort implements CompilerPort {
       this.pending.delete(response.requestId);
 
       if (response.type === 'compile-result') {
-        entry.resolve(response.result);
+        if (entry.kind === 'compile') {
+          entry.resolve(response.result);
+        } else {
+          entry.reject(new Error('Compiler worker returned compile-result for a non-compile request'));
+        }
       } else if (response.type === 'internal-error') {
         entry.reject(new Error(response.message));
       }
     });
+
+    worker.addEventListener('messageerror', () => {
+      this.failAllPending(new Error('Compiler worker emitted messageerror'));
+    });
+
+    worker.addEventListener('error', (event: ErrorEvent) => {
+      const reason = event.message || 'Compiler worker crashed';
+      this.failAllPending(new Error(reason));
+    });
   }
 
-  private async ensureInit(): Promise<void> {
+  init(): Promise<void> {
+    if (this.fatalError) return Promise.reject(this.fatalError);
+    return this.ensureInit();
+  }
+
+  private failAllPending(error: Error): void {
+    if (!this.fatalError) this.fatalError = error;
+    for (const entry of this.pending.values()) {
+      entry.reject(error);
+    }
+    this.pending.clear();
+  }
+
+  private ensureInit(): Promise<void> {
+    if (this.fatalError) return Promise.reject(this.fatalError);
     if (!this.initPromise) {
       this.initPromise = this.sendInit();
     }
@@ -56,14 +106,17 @@ export class BrowserCompilerPort implements CompilerPort {
 
   private async sendInit(): Promise<void> {
     const sysrootGzData = await this.fetchBinary(this.sysrootUrl);
+    if (this.fatalError) throw this.fatalError;
 
     const requestId = crypto.randomUUID();
     return new Promise((resolve, reject) => {
-      this.pending.set(requestId, {
-        resolve: resolve as any,
-        reject,
-      });
-      const request: WorkerRequest = { type: 'init', requestId, sysrootGzData };
+      this.pending.set(requestId, { kind: 'init', resolve, reject });
+      const request: WorkerRequest = {
+        type: 'init',
+        requestId,
+        sysrootGzData,
+        yowaspClangBundleUrl: this.yowaspClangBundleUrl,
+      };
       this.worker.postMessage(request, [sysrootGzData]);
     });
   }
@@ -83,7 +136,12 @@ export class BrowserCompilerPort implements CompilerPort {
       };
     }
 
+    if (this.fatalError) {
+      throw this.fatalError;
+    }
+
     await this.ensureInit();
+    if (this.fatalError) throw this.fatalError;
 
     const requestId = crypto.randomUUID();
     const request: WorkerRequest = {
@@ -95,7 +153,7 @@ export class BrowserCompilerPort implements CompilerPort {
     };
 
     return new Promise((resolve, reject) => {
-      this.pending.set(requestId, { resolve, reject });
+      this.pending.set(requestId, { kind: 'compile', resolve, reject });
       this.worker.postMessage(request);
     });
   }

@@ -42,12 +42,10 @@ function isCompilerModule(value: unknown): value is YowaspCompilerModule {
   return typeof record.runClang === 'function' && typeof record.runLLVM === 'function';
 }
 
-export async function loadVendoredYowaspClang(
-  origin: string,
+export async function loadVendoredYowaspClangFromBundleUrl(
+  bundleUrl: string,
   importer: ModuleImporter = importVendoredModule,
 ): Promise<YowaspCompilerModule> {
-  const bundleUrl = resolveVendoredYowaspClangBundleUrl(origin);
-
   let loaded: unknown;
   try {
     loaded = await importer(bundleUrl);
@@ -61,4 +59,12 @@ export async function loadVendoredYowaspClang(
   }
 
   return loaded;
+}
+
+export async function loadVendoredYowaspClang(
+  origin: string,
+  importer: ModuleImporter = importVendoredModule,
+): Promise<YowaspCompilerModule> {
+  const bundleUrl = resolveVendoredYowaspClangBundleUrl(origin);
+  return loadVendoredYowaspClangFromBundleUrl(bundleUrl, importer);
 }

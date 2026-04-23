@@ -2,15 +2,17 @@ import type { WorkerRequest, WorkerResponse } from './workerProtocol.js';
 import { isWorkerRequest } from './workerProtocol.js';
 import { YowaspCppCompiler, compileCpp } from '../internal/yowasp/YowaspCppCompiler.js';
 import { loadSysrootEntriesFromArchive, type SysrootEntry } from '../internal/toolchain/loadSysrootArchive.js';
-import { loadVendoredYowaspClang, type YowaspCompilerModule } from '../internal/yowasp/loadVendoredYowaspClang.js';
+import { loadVendoredYowaspClangFromBundleUrl, type YowaspCompilerModule } from '../internal/yowasp/loadVendoredYowaspClang.js';
 
 let storedSysrootEntries: SysrootEntry[] | null = null;
 let yowaspCompilerModulePromise: Promise<YowaspCompilerModule> | null = null;
 let compilerWithFlags: YowaspCppCompiler | null = null;
+let yowaspClangBundleUrl: string | null = null;
 
 function loadCompilerModule(): Promise<YowaspCompilerModule> {
   if (!yowaspCompilerModulePromise) {
-    yowaspCompilerModulePromise = loadVendoredYowaspClang(self.location.origin);
+    if (!yowaspClangBundleUrl) throw new Error('Worker not initialized: missing yowasp bundle url');
+    yowaspCompilerModulePromise = loadVendoredYowaspClangFromBundleUrl(yowaspClangBundleUrl);
   }
   return yowaspCompilerModulePromise;
 }
@@ -21,6 +23,10 @@ self.onmessage = async (event: MessageEvent<unknown>) => {
 
   try {
     if (req.type === 'init') {
+      if (yowaspClangBundleUrl && yowaspClangBundleUrl !== req.yowaspClangBundleUrl) {
+        throw new Error('Worker already initialized with a different yowasp bundle url');
+      }
+      yowaspClangBundleUrl = req.yowaspClangBundleUrl;
       storedSysrootEntries = await loadSysrootEntriesFromArchive(req.sysrootGzData);
       await loadCompilerModule();
       self.postMessage({ type: 'init-result', requestId: req.requestId } satisfies WorkerResponse);

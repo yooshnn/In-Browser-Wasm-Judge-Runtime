@@ -3,12 +3,17 @@ import { BrowserCompilerPort } from '../../src/adapters/compiler/BrowserCompiler
 import type { WorkerResponse } from '../../src/worker/workerProtocol.js';
 
 class FakeWorker {
-  private listener: ((event: MessageEvent<unknown>) => void) | null = null;
+  private listeners: Partial<{
+    message: (event: MessageEvent<unknown>) => void;
+    messageerror: () => void;
+    error: (event: ErrorEvent) => void;
+  }> = {};
   readonly postedMessages: unknown[] = [];
   readonly transferLists: Transferable[][] = [];
+  autoRespondToCompile = true;
 
-  addEventListener(_type: 'message', listener: (event: MessageEvent<unknown>) => void): void {
-    this.listener = listener;
+  addEventListener(type: 'message' | 'messageerror' | 'error', listener: any): void {
+    this.listeners[type] = listener;
   }
 
   postMessage(message: unknown, transfer?: Transferable[]): void {
@@ -17,12 +22,13 @@ class FakeWorker {
 
     const request = message as { type: string; requestId: string };
     if (request.type === 'init') {
-      this.dispatch({ type: 'init-result', requestId: request.requestId });
+      this.dispatchMessage({ type: 'init-result', requestId: request.requestId });
       return;
     }
 
     if (request.type === 'compile') {
-      this.dispatch({
+      if (!this.autoRespondToCompile) return;
+      this.dispatchMessage({
         type: 'compile-result',
         requestId: request.requestId,
         result: {
@@ -37,8 +43,12 @@ class FakeWorker {
     }
   }
 
-  private dispatch(response: WorkerResponse): void {
-    this.listener?.({ data: response } as MessageEvent<unknown>);
+  dispatchMessage(response: WorkerResponse): void {
+    this.listeners.message?.({ data: response } as MessageEvent<unknown>);
+  }
+
+  dispatchError(message = 'boom'): void {
+    this.listeners.error?.({ message } as ErrorEvent);
   }
 }
 
@@ -65,12 +75,61 @@ describe('BrowserCompilerPort', () => {
     expect(worker.postedMessages[0]).toMatchObject({
       type: 'init',
       sysrootGzData: expect.any(ArrayBuffer),
+      yowaspClangBundleUrl: '/yowasp-clang/bundle.js',
     });
     expect(worker.postedMessages[0]).not.toMatchObject({
       clangWasmData: expect.anything(),
       ldWasmData: expect.anything(),
     });
     expect(worker.transferLists[0]).toHaveLength(1);
+
+    vi.unstubAllGlobals();
+  });
+
+  it('init() is idempotent (returns the same promise and does one fetch/post)', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      arrayBuffer: async () => new ArrayBuffer(8),
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const worker = new FakeWorker();
+    const compiler = new BrowserCompilerPort(worker as unknown as Worker);
+
+    const p1 = compiler.init();
+    const p2 = compiler.init();
+    expect(p1).toBe(p2);
+    await p1;
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(worker.postedMessages.filter((m) => (m as any).type === 'init')).toHaveLength(1);
+
+    vi.unstubAllGlobals();
+  });
+
+  it('worker crash rejects pending init/compile and prevents future compiles from hanging', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      arrayBuffer: async () => new ArrayBuffer(8),
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const worker = new FakeWorker();
+    const compiler = new BrowserCompilerPort(worker as unknown as Worker);
+    await compiler.init();
+
+    // Simulate a compile request that never responds, then crash.
+    worker.autoRespondToCompile = false;
+
+    const inFlight = compiler.compile('cpp', { sourceCode: 'int main() { return 0; }' }, { flags: [] });
+    worker.dispatchError('Compiler worker crashed');
+
+    await expect(inFlight).rejects.toThrow(/crashed/i);
+    await expect(
+      compiler.compile('cpp', { sourceCode: 'int main() { return 0; }' }, { flags: [] }),
+    ).rejects.toThrow(/crashed/i);
 
     vi.unstubAllGlobals();
   });

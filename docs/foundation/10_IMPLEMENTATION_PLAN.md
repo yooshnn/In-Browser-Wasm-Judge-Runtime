@@ -19,7 +19,7 @@
 - `packages/core`, `packages/runtime-cpp`, `packages/runtime-browser`, `packages/runtime-node` 골격이 존재한다.
 - `pnpm turbo run typecheck`가 통과한다.
 
-## Phase 1. 최소 실행 루프 (컴파일 + 단일 테스트)
+## Phase 1. 브라우저 포트 레벨 최소 실행 루프
 
 - 단일 C++ 소스 컴파일
 - 단일 테스트케이스 stdin 실행
@@ -29,10 +29,35 @@
 
 완료 기준:
 
-- `judge()` 내부에서 compile + single execute가 동작한다.
-- compile failure 시 `phase: 'compile'` 결과를 반환한다.
+- browser `CompilerPort`와 `ExecutorPort` 조합으로 compile + single execute가 동작한다.
+- compile failure가 `CompileFailure`로 반환된다.
+- compile success artifact를 여러 execute 호출에서 재사용할 수 있다.
 
-## Phase 2. 다중 테스트케이스 + 요약 집계
+현재 상태:
+
+- 구현 완료.
+- browser integration test에서 compile success/failure, stdin/stdout/stderr, `std::getline` 경로를 검증한다.
+
+## Phase 2. Application `judge()` + 기본 Exact Checker
+
+- `JudgeRuntime.judge()` 또는 그에 준하는 application orchestration 구현
+- compile 호출
+- compile failure 시 `phase: 'compile'` 결과 반환
+- 단일/다중 testcase 실행 반복
+- execution failure를 checker에 넘기지 않고 `JudgeTestResult`로 변환
+- execution success만 checker에 전달
+- exact checker 구현
+- trailing whitespace 옵션 반영
+- AC/WA 판정 연결
+
+완료 기준:
+
+- stdio exact judge 기본 경로가 `JudgeResult`로 동작한다.
+- compile failure 시 `phase: 'compile'`이 반환된다.
+- execution failure 시 checker를 호출하지 않는다.
+- accepted/wrong_answer/runtime failure가 테스트 단위 결과로 드러난다.
+
+## Phase 3. 다중 테스트케이스 + 요약 집계
 
 - 테스트케이스 배열 반복
 - 테스트별 실행 결과 수집
@@ -44,17 +69,7 @@
 
 - 여러 테스트케이스에 대해 결과 배열과 summary를 만들 수 있다.
 - 최종 상태 우선순위가 정책과 일치한다.
-
-## Phase 3. 기본 Exact Checker
-
-- exact checker 구현
-- trailing whitespace 옵션 반영
-- AC/WA 판정 연결
-- execution failure를 checker에 넘기지 않는 흐름 정리
-
-완료 기준:
-
-- stdio exact judge 기본 경로가 동작한다.
+- `passed`, `failed`, `total`, `totalElapsedMs`, `maxTestElapsedMs`, `slowestTestId`가 계산된다.
 
 ## Phase 4. Custom JS Checker
 
@@ -69,24 +84,35 @@
 
 ## Phase 5. 실행 제한 & 오류 정책
 
+- browser executor의 실행 제한 결과를 application 결과 변환에 연결
+- TLE/OLE/MLE/RE/internal_error를 `JudgeTestResult`로 변환
+- 최종 summary 우선순위와 실행 실패 상태 연결
+- 제한 실패 시 `stopOnFirstFailure` 동작 확인
+- 출력 제한 초과 시 truncate하지 않는 정책 유지
+
+이미 구현된 browser executor 기반:
+
 - testcase execution worker 분리
 - timeout terminate 기반 TLE 처리
 - `fd_write` 누적 바이트 기반 OLE 처리
 - wasm memory upper bound 기반 MLE 근사 정책 반영
 - RE / internal_error 정리
-- 출력 제한 초과 시 truncate하지 않는 정책 반영
 
 완료 기준:
 
 - browser runtime에서 `runtime_error`, `time_limit_exceeded`, `memory_limit_exceeded`, `output_limit_exceeded`, `internal_error`를 모두 재현 가능하다.
 - execution worker terminate 이후 다음 testcase 실행이 정상 복구된다.
-- 주요 실패 상태가 타입, 흐름, 테스트에서 모두 일치한다.
+- 주요 실패 상태가 executor, application 변환, summary 집계, 테스트에서 모두 일치한다.
 
-## Phase 6. 브라우저/런타임 마무리
+## Phase 6. 브라우저 Public Runtime / Bootstrap 마무리
 
 - artifact loader 정리
 - worker protocol 정리
 - compile host worker / execution worker 경계 정리
+- public export 정리
+- `createJudgeRuntime()` 구현
+- `JudgeRuntime.judge()`와 application orchestration 연결
+- `JudgeRuntime.health()` 연결
 - health() 구현
 - bootstrap 실패 경로 정리
 
@@ -94,6 +120,7 @@
 
 - 브라우저에서 안정적으로 bootstrap 및 health 조회가 가능하다.
 - compile payload artifact와 testcase execution worker 경계가 고정된다.
+- 외부 사용자가 public API만으로 compile/execute/check 전체 judge flow를 실행할 수 있다.
 
 ## Phase 7. Node 보조 & 테스트 경화 (CI)
 
@@ -101,10 +128,12 @@
 - CI용 테스트 경로 구성
 - browser/node 공통 contract 검증
 - 회귀 시나리오 고정
+- core application 계층은 browser 없이도 테스트 가능하게 유지
 
 완료 기준:
 
-- CI에서 주요 채점 흐름을 자동 검증할 수 있다.
+- CI에서 주요 채점 흐름과 실패 정책을 자동 검증할 수 있다.
+- browser integration test와 core contract test가 함께 유지된다.
 
 ## 구현 우선순위 원칙
 
@@ -120,3 +149,4 @@
 - TLE는 execution worker terminate 기반으로 동작한다.
 - OLE는 `fd_write` 누적 byte 추적으로 동작한다.
 - MLE는 정밀 측정이 아니라 wasm memory 상한 기반 실패 의미를 가진다.
+- 아직 남은 핵심 구현은 application `judge()` orchestration, exact/custom checker 연결, summary 집계, public runtime bootstrap이다.

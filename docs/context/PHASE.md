@@ -19,12 +19,12 @@
 
 - [x] 타입 계약 확정 (`docs/context/TYPES.md`)
 - [x] 패키지 구조 결정 (4-패키지)
-- [ ] monorepo 루트 설정 (package.json, pnpm-workspace.yaml, turbo.json, tsconfig.base.json 등)
-- [ ] `packages/core/` 스캐폴딩 (타입 파일, port 인터페이스)
-- [ ] `packages/runtime-cpp/` 스캐폴딩 (아티팩트 placeholder, manifest)
-- [ ] `packages/runtime-browser/` 스캐폴딩 (stub)
-- [ ] `packages/runtime-node/` 스캐폴딩 (stub)
-- [ ] `pnpm install` + `pnpm turbo run typecheck` 통과
+- [x] monorepo 루트 설정 (package.json, pnpm-workspace.yaml, turbo.json, tsconfig.base.json 등)
+- [x] `packages/core/` 스캐폴딩 (타입 파일, port 인터페이스)
+- [x] `packages/runtime-cpp/` 스캐폴딩 (아티팩트 placeholder, manifest)
+- [x] `packages/runtime-browser/` 스캐폴딩 (stub)
+- [x] `packages/runtime-node/` 스캐폴딩 (stub)
+- [x] `pnpm install` + `pnpm turbo run typecheck` 통과
 
 ## 현재 상태 메모
 

@@ -21,7 +21,7 @@ export async function createJudgeRuntime(
   try {
     compilerWorker = resolved.createCompilerWorker();
   } catch (error) {
-    throw error instanceof Error ? error : new Error(String(error));
+    throw withBootstrapContext('Failed to create compiler worker', error);
   }
 
   const compiler = new BrowserCompilerPort(
@@ -40,6 +40,7 @@ export async function createJudgeRuntime(
     getHealth,
     (reason) => {
       compiler.dispose(reason);
+      executor.dispose(reason);
       compilerWorker.terminate();
     },
   );
@@ -49,11 +50,17 @@ export async function createJudgeRuntime(
     artifactsState.compilerLoaded = true;
     artifactsState.sysrootLoaded = true;
   } catch (error) {
-    const err = error instanceof Error ? error : new Error(String(error));
+    const err = withBootstrapContext('Failed to bootstrap browser judge runtime', error);
     compiler.dispose(err);
+    executor.dispose(err);
     compilerWorker.terminate();
     throw err;
   }
 
   return runtime;
+}
+
+function withBootstrapContext(context: string, error: unknown): Error {
+  const reason = error instanceof Error ? error.message : String(error);
+  return new Error(`${context}: ${reason}`);
 }

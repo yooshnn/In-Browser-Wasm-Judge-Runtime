@@ -11,6 +11,8 @@ export const JUDGE_RUNTIME_TERMINATED_MESSAGE = 'JudgeRuntime has been terminate
 
 export class BrowserJudgeRuntime implements JudgeRuntime {
   private terminated = false;
+  private terminationError: Error | null = null;
+  private readonly activeRejectors = new Set<(error: Error) => void>();
 
   constructor(
     private readonly ports: JudgeApplicationPorts,
@@ -20,7 +22,7 @@ export class BrowserJudgeRuntime implements JudgeRuntime {
 
   async judge(request: JudgeRequest): Promise<JudgeResult> {
     this.assertAlive();
-    return coreJudge(request, this.ports);
+    return this.runUntilTerminated(coreJudge(request, this.ports));
   }
 
   async health(): Promise<RuntimeHealth> {
@@ -31,12 +33,39 @@ export class BrowserJudgeRuntime implements JudgeRuntime {
   terminate(): void {
     if (this.terminated) return;
     this.terminated = true;
-    this.onTerminate(new Error(JUDGE_RUNTIME_TERMINATED_MESSAGE));
+    const reason = new Error(JUDGE_RUNTIME_TERMINATED_MESSAGE);
+    this.terminationError = reason;
+    for (const reject of this.activeRejectors) {
+      reject(reason);
+    }
+    this.activeRejectors.clear();
+    this.onTerminate(reason);
   }
 
   private assertAlive(): void {
     if (!this.terminated) return;
-    throw new Error(JUDGE_RUNTIME_TERMINATED_MESSAGE);
+    throw this.terminationError ?? new Error(JUDGE_RUNTIME_TERMINATED_MESSAGE);
+  }
+
+  private runUntilTerminated<T>(operation: Promise<T>): Promise<T> {
+    if (this.terminationError) return Promise.reject(this.terminationError);
+
+    return new Promise<T>((resolve, reject) => {
+      const rejectOnTerminate = (error: Error): void => {
+        reject(error);
+      };
+
+      this.activeRejectors.add(rejectOnTerminate);
+      operation.then(
+        (value) => {
+          this.activeRejectors.delete(rejectOnTerminate);
+          resolve(value);
+        },
+        (error: unknown) => {
+          this.activeRejectors.delete(rejectOnTerminate);
+          reject(error);
+        },
+      );
+    });
   }
 }
-

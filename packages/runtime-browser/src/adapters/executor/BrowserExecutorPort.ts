@@ -10,11 +10,31 @@ import {
 
 type WorkerFactory = () => Worker;
 
+type ActiveExecution = {
+  worker: Worker;
+  timeoutId: ReturnType<typeof setTimeout> | null;
+  reject: (error: Error) => void;
+};
+
 export class BrowserExecutorPort implements ExecutorPort {
+  private readonly activeExecutions = new Map<string, ActiveExecution>();
+  private disposedError: Error | null = null;
+
   constructor(
     private readonly createWorker: WorkerFactory = () =>
-      new Worker(new URL('../../worker/executionWorker.ts', import.meta.url), { type: 'module' }),
+      new Worker(new URL('../../worker/executionWorker.js', import.meta.url), { type: 'module' }),
   ) {}
+
+  dispose(reason: Error = new Error('Executor port disposed')): void {
+    if (!this.disposedError) this.disposedError = reason;
+
+    for (const [requestId, execution] of this.activeExecutions) {
+      if (execution.timeoutId !== null) clearTimeout(execution.timeoutId);
+      execution.worker.terminate();
+      execution.reject(reason);
+      this.activeExecutions.delete(requestId);
+    }
+  }
 
   async execute(
     artifact: ExecutableArtifact,
@@ -22,6 +42,10 @@ export class BrowserExecutorPort implements ExecutorPort {
     limits: ExecutionLimits,
     policy: Pick<JudgePolicy, 'stdoutLimitBytes' | 'stderrLimitBytes'>,
   ): Promise<ExecutionResult> {
+    if (this.disposedError) {
+      throw this.disposedError;
+    }
+
     const requestId = crypto.randomUUID();
     const request: ExecutionWorkerRequest = {
       type: 'execute',
@@ -49,6 +73,7 @@ export class BrowserExecutorPort implements ExecutorPort {
         if (settled) return;
         settled = true;
         if (timeoutId !== null) clearTimeout(timeoutId);
+        this.activeExecutions.delete(requestId);
         worker.terminate();
         resolve(result);
       };
@@ -90,12 +115,15 @@ export class BrowserExecutorPort implements ExecutorPort {
         });
       }, limits.timeLimitMs);
 
+      this.activeExecutions.set(requestId, { worker, timeoutId, reject });
+
       const transfer: Transferable[] = [wasmBinary.buffer];
 
       try {
         worker.postMessage({ ...request, artifact: { wasmBinary } }, transfer);
       } catch (error) {
         if (timeoutId !== null) clearTimeout(timeoutId);
+        this.activeExecutions.delete(requestId);
         worker.terminate();
         reject(error instanceof Error ? error : new Error(String(error)));
       }

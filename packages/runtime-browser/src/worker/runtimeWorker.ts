@@ -27,8 +27,18 @@ self.onmessage = async (event: MessageEvent<unknown>) => {
         throw new Error('Worker already initialized with a different yowasp bundle url');
       }
       yowaspClangBundleUrl = req.yowaspClangBundleUrl;
-      storedSysrootEntries = await loadSysrootEntriesFromArchive(req.sysrootGzData);
-      await loadCompilerModule();
+      try {
+        storedSysrootEntries = await loadSysrootEntriesFromArchive(req.sysrootGzData);
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error);
+        throw new Error(`Failed to load sysroot archive: ${reason}`);
+      }
+      try {
+        await loadCompilerModule();
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error);
+        throw new Error(`Failed to load yowasp clang bundle from ${req.yowaspClangBundleUrl}: ${reason}`);
+      }
       self.postMessage({ type: 'init-result', requestId: req.requestId } satisfies WorkerResponse);
       return;
     }

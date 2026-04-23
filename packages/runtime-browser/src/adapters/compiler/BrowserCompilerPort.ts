@@ -103,9 +103,22 @@ export class BrowserCompilerPort implements CompilerPort {
   }
 
   private async fetchBinary(url: string): Promise<ArrayBuffer> {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`Failed to fetch ${url}: HTTP ${response.status}`);
-    return response.arrayBuffer();
+    let response: Response;
+    try {
+      response = await fetch(url);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to fetch sysroot artifact at ${url}: ${reason}`);
+    }
+    if (!response.ok) {
+      throw new Error(`Failed to fetch sysroot artifact at ${url}: HTTP ${response.status}`);
+    }
+    try {
+      return await response.arrayBuffer();
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to read sysroot artifact at ${url}: ${reason}`);
+    }
   }
 
   private async sendInit(): Promise<void> {

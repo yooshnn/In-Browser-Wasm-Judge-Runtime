@@ -63,10 +63,9 @@ export function resolveBootstrapOptions(
     version: options.version ?? 'dev',
     createCompilerWorker:
       options.createCompilerWorker ??
-      (() => new Worker(new URL('../worker/runtimeWorker.ts', import.meta.url), { type: 'module' })),
+      (() => new Worker(new URL('../worker/runtimeWorker.js', import.meta.url), { type: 'module' })),
     createExecutionWorker:
       options.createExecutionWorker ??
-      (() => new Worker(new URL('../worker/executionWorker.ts', import.meta.url), { type: 'module' })),
+      (() => new Worker(new URL('../worker/executionWorker.js', import.meta.url), { type: 'module' })),
   };
 }
-

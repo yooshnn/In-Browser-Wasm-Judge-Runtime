@@ -116,4 +116,34 @@ describe('BrowserExecutorPort', () => {
       vi.useRealTimers();
     }
   });
+
+  it('dispose() terminates active workers and rejects pending execution', async () => {
+    let fakeWorker: FakeExecutionWorker | null = null;
+    const executor = new BrowserExecutorPort(
+      () => {
+        fakeWorker = new FakeExecutionWorker(() => {});
+        return fakeWorker as unknown as Worker;
+      },
+    );
+
+    const inFlight = executor.execute(
+      { wasmBinary: new Uint8Array([0x00, 0x61, 0x73, 0x6d]) },
+      '',
+      { timeLimitMs: 1000, memoryLimitBytes: 1024 * 1024 },
+      { stdoutLimitBytes: 1024, stderrLimitBytes: 1024 },
+    );
+
+    executor.dispose(new Error('disposed'));
+
+    await expect(inFlight).rejects.toThrow(/disposed/i);
+    expect(fakeWorker?.terminated).toBe(true);
+    await expect(
+      executor.execute(
+        { wasmBinary: new Uint8Array([0x00, 0x61, 0x73, 0x6d]) },
+        '',
+        { timeLimitMs: 1000, memoryLimitBytes: 1024 * 1024 },
+        { stdoutLimitBytes: 1024, stderrLimitBytes: 1024 },
+      ),
+    ).rejects.toThrow(/disposed/i);
+  });
 });

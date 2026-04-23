@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { JudgeRequest } from '@cupya.me/wasm-judge-runtime-core';
-import { createJudgeRuntime } from '../../src/index.js';
+import { createJudgeRuntime } from '@cupya.me/wasm-judge-runtime-browser';
 
 const DEFAULT_LIMITS = {
   timeLimitMs: 5000,
@@ -27,7 +27,7 @@ function judgeRequest(sourceCode: string): JudgeRequest {
 }
 
 describe('createJudgeRuntime (browser public API)', () => {
-  it('happy path: eager init + accepted exact judge + health ready', async () => {
+  it('packaging smoke: package entry + default workers + accepted exact judge + health ready', async () => {
     const runtime = await createJudgeRuntime({ version: 'phase6-test' });
     const health = await runtime.health();
     expect(health.ready).toBe(true);
@@ -54,13 +54,23 @@ describe('createJudgeRuntime (browser public API)', () => {
   it('bootstrap failure: missing sysrootUrl rejects', async () => {
     await expect(
       createJudgeRuntime({ sysrootUrl: '/missing-sysroot.tar.gz' }),
-    ).rejects.toThrow(/Failed to fetch/i);
+    ).rejects.toThrow(/Failed to bootstrap browser judge runtime: Failed to fetch sysroot artifact/i);
   });
 
   it('bootstrap failure: missing yowaspClangBundleUrl rejects', async () => {
     await expect(
       createJudgeRuntime({ yowaspClangBundleUrl: '/missing-yowasp-bundle.js' }),
-    ).rejects.toThrow();
+    ).rejects.toThrow(/Failed to load yowasp clang bundle/i);
+  });
+
+  it('bootstrap failure: compiler worker creation rejects with stage context', async () => {
+    await expect(
+      createJudgeRuntime({
+        createCompilerWorker: () => {
+          throw new Error('worker constructor failed');
+        },
+      }),
+    ).rejects.toThrow(/Failed to create compiler worker: worker constructor failed/);
   });
 
   it('terminate(): judge()/health() reject with a meaningful error', async () => {
@@ -71,4 +81,3 @@ describe('createJudgeRuntime (browser public API)', () => {
     await expect(runtime.judge(judgeRequest('int main() { return 0; }'))).rejects.toThrow(/terminated/i);
   });
 });
-

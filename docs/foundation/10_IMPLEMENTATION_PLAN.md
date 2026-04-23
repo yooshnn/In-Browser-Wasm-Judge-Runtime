@@ -149,4 +149,5 @@
 - TLE는 execution worker terminate 기반으로 동작한다.
 - OLE는 `fd_write` 누적 byte 추적으로 동작한다.
 - MLE는 정밀 측정이 아니라 wasm memory 상한 기반 실패 의미를 가진다.
-- 아직 남은 핵심 구현은 application `judge()` orchestration, exact/custom checker 연결, summary 집계, public runtime bootstrap이다.
+- core application `judge()` orchestration, exact checker, 기본 summary 집계는 구현되었다.
+- 아직 남은 핵심 구현은 custom checker registry/resolver, public runtime bootstrap, health/bootstrap 마무리다.

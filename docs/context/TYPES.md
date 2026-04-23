@@ -152,7 +152,11 @@ export type CompileFailure = {
   elapsedMs: number
 }
 
-export type ExecutableArtifact = { id: string }
+// compile 산출물은 worker-local handle이 아니라
+// testcase execution worker로 직접 넘길 수 있는 직렬화 가능한 payload다.
+export type ExecutableArtifact = {
+  wasmBinary: Uint8Array
+}
 
 export type ExecutionSuccess = {
   success: true
@@ -168,6 +172,12 @@ export type ExecutionFailure = {
   reason?: string
 }
 ```
+
+메모:
+
+- browser runtime은 compile용 worker와 testcase execution worker를 분리한다.
+- `time_limit_exceeded`는 execution worker terminate 기반으로 판정할 수 있다.
+- `memory_limit_exceeded`는 정밀 측정이 아니라 wasm memory 상한 기반 실패 의미를 가진다.
 
 ## Status Priority (집계 우선순위)
 

@@ -113,7 +113,7 @@ interface CompilerPort {
 }
 
 interface ExecutorPort {
-  execute(artifact: ExecutableArtifact, testCase: JudgeTestCase, limits: ExecutionLimits, policy: JudgePolicy): Promise<ExecutionSuccess | ExecutionFailure>
+  execute(artifact: ExecutableArtifact, stdin: string, limits: ExecutionLimits, policy: Pick<JudgePolicy, 'stdoutLimitBytes' | 'stderrLimitBytes'>): Promise<ExecutionSuccess | ExecutionFailure>
 }
 ```
 
@@ -124,7 +124,8 @@ interface ExecutorPort {
 책임:
 
 - Wasm artifact 로드
-- worker 생성 및 메시지 통신
+- compile host worker 생성 및 메시지 통신
+- testcase execution worker 생성 및 수명 관리
 - 브라우저 메모리/시간 제한 대응
 - stdout/stderr 수집
 - health 정보 노출
@@ -139,8 +140,18 @@ runtime-browser/
       executor/
       health/
     worker/
+      runtimeWorker.ts         # compile host worker
+      executionWorker.ts       # testcase execution worker
     loader/
 ```
+
+현재 browser 구현의 핵심 구조:
+
+- compile은 long-lived host worker가 담당한다.
+- execute는 testcase마다 별도 worker가 담당한다.
+- compile 결과 `ExecutableArtifact`는 worker-local id가 아니라 wasm payload다.
+- timeout ownership은 main thread executor가 가진다.
+- execution worker는 timeout, output limit, memory limit 실패 후 즉시 폐기할 수 있다.
 
 ## runtime-node 상세
 

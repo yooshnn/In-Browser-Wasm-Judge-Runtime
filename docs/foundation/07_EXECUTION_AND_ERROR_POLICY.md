@@ -60,6 +60,12 @@
 - 테스트케이스 실행 시간이 `timeLimitMs`를 초과한 경우
 - worker 강제 종료가 시간 제한에 의해 발생한 경우
 
+현재 browser runtime 구현 메모:
+
+- testcase execution은 전용 worker에서 수행한다.
+- timeout 타이머는 executor 쪽이 가진다.
+- timeout 시 execution worker를 terminate 하고 `time_limit_exceeded`를 반환한다.
+
 ## memory_limit_exceeded
 
 다음 경우 MLE로 본다.
@@ -68,6 +74,12 @@
 - Wasm 메모리 상한 기반 정책상 메모리 초과로 판단된 경우
 
 주의: 브라우저 환경에서는 전통적 서버형 OJ 수준의 정밀 메모리 측정이 어렵다. 따라서 본 프로젝트의 MLE는 상한 기반 실패로 정의한다.
+
+현재 browser runtime 구현 메모:
+
+- `memoryLimitBytes`는 정밀 계측값이 아니라 wasm memory upper bound 판정 기준이다.
+- instantiate 실패나 실행 중 memory 상한 초과가 정책상 명확하면 `memory_limit_exceeded`로 반환한다.
+- 브라우저 엔진이 모호한 OOM/worker crash만 남기는 경우는 보수적으로 `internal_error` 또는 `runtime_error`로 남길 수 있다.
 
 ## output_limit_exceeded
 
@@ -80,6 +92,11 @@
 
 - 출력은 truncate하지 않는다.
 - OLE는 명시적 실행 실패로 처리한다.
+
+현재 browser runtime 구현 메모:
+
+- `fd_write`에서 stdout/stderr 누적 바이트 수를 추적한다.
+- limit 초과 시 `output_limit_exceeded`로 실패 처리한다.
 
 ## accepted / wrong_answer
 

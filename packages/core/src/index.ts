@@ -29,3 +29,8 @@ export type { CompilerPort } from './ports/CompilerPort.js';
 export type { ExecutorPort } from './ports/ExecutorPort.js';
 export type { CheckerRunnerPort } from './ports/CheckerRunnerPort.js';
 export type { RuntimeHealthPort } from './ports/RuntimeHealthPort.js';
+
+// Application
+export { judge } from './application/judge.js';
+export { runExactChecker } from './application/exactChecker.js';
+export type { JudgeApplicationPorts } from './application/judge.js';

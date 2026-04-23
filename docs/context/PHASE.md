@@ -2,7 +2,7 @@
 
 > `docs/foundation/10_IMPLEMENTATION_PLAN.md` 기반. 작업 진행 시 업데이트.
 
-## 현재 단계: Phase 4
+## 현재 단계: Phase 7
 
 | Phase | 이름 | 상태 |
 |-------|------|------|
@@ -10,10 +10,10 @@
 | 1 | 브라우저 포트 레벨 최소 실행 루프 | ✅ 구현 완료 |
 | 2 | Application `judge()` + 기본 Exact Checker | ✅ 구현 완료 |
 | 3 | 다중 테스트케이스 + 요약 집계 | ✅ 기본 구현 완료 |
-| 4 | Custom JS Checker | ⏳ 미착수 |
-| 5 | 실행 제한 & 오류 정책 (TLE/OLE/MLE/RE) | 🔄 일부 구현 |
-| 6 | 브라우저/런타임 마무리 (health, bootstrap) | 🔄 진행 중 |
-| 7 | Node 보조 & 테스트 경화 (CI) | ⏳ 미착수 |
+| 4 | Custom JS Checker | ✅ 구현 완료 |
+| 5 | 실행 제한 & 오류 정책 (TLE/OLE/MLE/RE) | ✅ 구현 완료 |
+| 6 | 브라우저/런타임 마무리 (health, bootstrap) | ✅ 구현 완료 |
+| 7 | Node 보조 & 테스트 경화 (CI) | 🔄 진행 중 |
 
 ## Phase 0 체크리스트
 
@@ -33,7 +33,9 @@
 - `ExecutableArtifact`는 worker-local handle이 아니라 wasm payload다.
 - browser runtime 기준 TLE/OLE/MLE/RE/internal_error 경로가 구현되고 브라우저 테스트로 검증되었다.
 - core application 계층의 `judge()` orchestration, exact checker, 기본 summary 집계가 구현되었다.
-- 아직 남은 핵심 공백은 custom checker registry/resolver, public runtime bootstrap, health/bootstrap 마무리다.
+- custom checker registry/resolver는 `createCheckerRunner()`와 browser bootstrap `checkers` 옵션으로 구현되었다.
+- public browser runtime bootstrap, health, terminate 경로는 `createJudgeRuntime()` 브라우저 테스트로 검증된다.
+- Phase 7의 남은 공백은 Node adapter의 실제 런타임 구현과 루트 CI 테스트 경로 정리다.
 
 ## 주요 설계 결정 (refinement 기록)
 

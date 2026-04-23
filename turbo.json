@@ -5,6 +5,10 @@
       "dependsOn": ["^typecheck"],
       "outputs": []
     },
+    "test:unit": {
+      "dependsOn": ["^typecheck"],
+      "outputs": []
+    },
     "test:browser": {
       "dependsOn": ["^typecheck"],
       "outputs": []

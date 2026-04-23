@@ -1,0 +1,86 @@
+import { describe, expect, it } from 'vitest';
+import { BrowserExecutorPort } from '../../src/adapters/executor/BrowserExecutorPort.js';
+
+type MessageListener = (event: MessageEvent<unknown>) => void;
+type ErrorListener = (event: ErrorEvent) => void;
+
+class FakeExecutionWorker {
+  private messageListener: MessageListener | null = null;
+  private messageErrorListener: (() => void) | null = null;
+  private errorListener: ErrorListener | null = null;
+  terminated = false;
+
+  constructor(private readonly behavior: (message: unknown, worker: FakeExecutionWorker) => void) {}
+
+  addEventListener(type: 'message' | 'messageerror' | 'error', listener: MessageListener | (() => void) | ErrorListener): void {
+    if (type === 'message') this.messageListener = listener as MessageListener;
+    if (type === 'messageerror') this.messageErrorListener = listener as () => void;
+    if (type === 'error') this.errorListener = listener as ErrorListener;
+  }
+
+  postMessage(message: unknown): void {
+    this.behavior(message, this);
+  }
+
+  terminate(): void {
+    this.terminated = true;
+  }
+
+  dispatchMessage(data: unknown): void {
+    this.messageListener?.({ data } as MessageEvent<unknown>);
+  }
+
+  dispatchMessageError(): void {
+    this.messageErrorListener?.();
+  }
+
+  dispatchError(message: string): void {
+    this.errorListener?.({ message } as ErrorEvent);
+  }
+}
+
+describe('BrowserExecutorPort', () => {
+  it('normalizes malformed worker responses to internal_error', async () => {
+    const executor = new BrowserExecutorPort(
+      () =>
+        new FakeExecutionWorker((_message, worker) => {
+          worker.dispatchMessage({ nope: true });
+        }) as unknown as Worker,
+    );
+
+    const result = await executor.execute(
+      { wasmBinary: new Uint8Array([0x00, 0x61, 0x73, 0x6d]) },
+      '',
+      { timeLimitMs: 1000, memoryLimitBytes: 1024 * 1024 },
+      { stdoutLimitBytes: 1024, stderrLimitBytes: 1024 },
+    );
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.status).toBe('internal_error');
+      expect(result.reason).toContain('Malformed response');
+    }
+  });
+
+  it('normalizes worker crashes to internal_error', async () => {
+    const executor = new BrowserExecutorPort(
+      () =>
+        new FakeExecutionWorker((_message, worker) => {
+          worker.dispatchError('boom');
+        }) as unknown as Worker,
+    );
+
+    const result = await executor.execute(
+      { wasmBinary: new Uint8Array([0x00, 0x61, 0x73, 0x6d]) },
+      '',
+      { timeLimitMs: 1000, memoryLimitBytes: 1024 * 1024 },
+      { stdoutLimitBytes: 1024, stderrLimitBytes: 1024 },
+    );
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.status).toBe('internal_error');
+      expect(result.reason).toContain('boom');
+    }
+  });
+});

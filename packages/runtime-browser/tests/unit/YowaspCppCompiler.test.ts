@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   YowaspCppCompiler,
+  compileCpp,
   buildYowaspClangInvocation,
   buildYowaspLdInvocation,
 } from '../../src/internal/yowasp/YowaspCppCompiler.js';
@@ -75,5 +76,23 @@ describe('YowaspCppCompiler', () => {
     expect(Array.from(result.wasmBinary ?? [])).toEqual([9, 8, 7]);
     expect(runClang).toHaveBeenCalledOnce();
     expect(runLLVM).toHaveBeenCalledOnce();
+  });
+
+  it('returns compile failure when linked wasm exceeds the artifact size cap', async () => {
+    const tooLarge = new Uint8Array(16 * 1024 * 1024 + 1);
+    const compiler = {
+      compile: vi.fn(async () => ({
+        status: 'ok' as const,
+        wasmBinary: tooLarge,
+        stderr: '',
+      })),
+    } as unknown as YowaspCppCompiler;
+
+    const result = await compileCpp(compiler, 'int main() { return 0; }', []);
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errors[0]).toContain('artifact size cap');
+    }
   });
 });

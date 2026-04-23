@@ -30,7 +30,7 @@ class FakeWorker {
           stdout: '',
           stderr: '',
           warnings: [],
-          artifact: { id: 'artifact-1' },
+          artifact: { wasmBinary: new Uint8Array([1, 2, 3]) },
           elapsedMs: 1,
         },
       });

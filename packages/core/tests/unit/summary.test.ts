@@ -35,6 +35,22 @@ describe('summarizeTests', () => {
     });
   });
 
+  it.each([
+    [['accepted', 'wrong_answer'], 'wrong_answer'],
+    [['wrong_answer', 'internal_error'], 'internal_error'],
+    [['internal_error', 'runtime_error'], 'runtime_error'],
+    [['runtime_error', 'output_limit_exceeded'], 'output_limit_exceeded'],
+    [['output_limit_exceeded', 'memory_limit_exceeded'], 'memory_limit_exceeded'],
+    [['memory_limit_exceeded', 'time_limit_exceeded'], 'time_limit_exceeded'],
+  ] satisfies Array<[JudgeTestResult['status'][], JudgeTestResult['status']]>)(
+    'selects %s according to full status priority',
+    (statuses, expected) => {
+      const summary = summarizeTests(statuses.map((status, index) => testResult(`${status}-${index}`, status, index + 1)));
+
+      expect(summary.status).toBe(expected);
+    },
+  );
+
   it('keeps max memory when available', () => {
     const summary = summarizeTests([
       testResult('a', 'accepted', 1, 128),

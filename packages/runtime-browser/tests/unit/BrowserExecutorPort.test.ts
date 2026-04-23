@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { BrowserExecutorPort } from '../../src/adapters/executor/BrowserExecutorPort.js';
 
 type MessageListener = (event: MessageEvent<unknown>) => void;
@@ -81,6 +81,39 @@ describe('BrowserExecutorPort', () => {
     if (!result.success) {
       expect(result.status).toBe('internal_error');
       expect(result.reason).toContain('boom');
+    }
+  });
+
+  it('terminates the execution worker and returns time_limit_exceeded on timeout', async () => {
+    vi.useFakeTimers();
+    try {
+      let fakeWorker: FakeExecutionWorker | null = null;
+      const executor = new BrowserExecutorPort(
+        () => {
+          fakeWorker = new FakeExecutionWorker(() => {});
+          return fakeWorker as unknown as Worker;
+        },
+      );
+
+      const resultPromise = executor.execute(
+        { wasmBinary: new Uint8Array([0x00, 0x61, 0x73, 0x6d]) },
+        '',
+        { timeLimitMs: 100, memoryLimitBytes: 1024 * 1024 },
+        { stdoutLimitBytes: 1024, stderrLimitBytes: 1024 },
+      );
+
+      await vi.advanceTimersByTimeAsync(100);
+      const result = await resultPromise;
+
+      expect(fakeWorker?.terminated).toBe(true);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.status).toBe('time_limit_exceeded');
+        expect(result.elapsedMs).toBe(100);
+        expect(result.reason).toContain('100 ms');
+      }
+    } finally {
+      vi.useRealTimers();
     }
   });
 });

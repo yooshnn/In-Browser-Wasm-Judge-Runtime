@@ -280,6 +280,46 @@ describe('judge application', () => {
     expect(appPorts.executeMock).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    'runtime_error',
+    'time_limit_exceeded',
+    'memory_limit_exceeded',
+    'output_limit_exceeded',
+    'internal_error',
+  ] as const)('stops after %s when stopOnFirstFailure is true', async (status) => {
+    const appPorts = ports({
+      executions: [
+        executionFailure(status),
+        executionSuccess('ok\n'),
+      ],
+    });
+
+    const result = await judge(
+      request({
+        policy: {
+          stopOnFirstFailure: true,
+          stdoutLimitBytes: 1024,
+          stderrLimitBytes: 1024,
+        },
+        problem: {
+          ...request().problem,
+          tests: [
+            { id: 't1', stdin: '', expected: 'ok\n' },
+            { id: 't2', stdin: '', expected: 'ok\n' },
+          ],
+        },
+      }),
+      appPorts,
+    );
+
+    expect(result.phase).toBe('finished');
+    if (result.phase !== 'finished') throw new Error('expected finished result');
+    expect(result.tests).toHaveLength(1);
+    expect(result.summary.status).toBe(status);
+    expect(appPorts.executeMock).toHaveBeenCalledTimes(1);
+    expect(appPorts.checkerMock).not.toHaveBeenCalled();
+  });
+
   it('continues after failures when stopOnFirstFailure is false', async () => {
     const appPorts = ports({
       executions: [

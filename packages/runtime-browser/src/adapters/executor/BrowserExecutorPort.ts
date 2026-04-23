@@ -86,6 +86,7 @@ export class BrowserExecutorPort implements ExecutorPort {
           stderr: '',
           exitCode: null,
           elapsedMs: limits.timeLimitMs,
+          reason: `Execution exceeded time limit (${limits.timeLimitMs} ms)`,
         });
       }, limits.timeLimitMs);
 

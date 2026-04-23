@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type {
+  CheckerFunction,
   CheckerRunnerPort,
   CompileFailure,
   CompileSuccess,
@@ -8,7 +9,7 @@ import type {
   JudgeApplicationPorts,
   JudgeRequest,
 } from '../../src/index.js';
-import { judge } from '../../src/index.js';
+import { createCheckerRunner, judge } from '../../src/index.js';
 
 const artifact = { wasmBinary: new Uint8Array([0, 1, 2, 3]) };
 
@@ -83,6 +84,19 @@ function request(overrides: Partial<JudgeRequest> = {}): JudgeRequest {
     },
     ...overrides,
   };
+}
+
+function customCheckerRequest(checkerId = 'token'): JudgeRequest {
+  const base = request();
+  return request({
+    problem: {
+      ...base.problem,
+      checker: {
+        kind: 'custom',
+        checkerId,
+      },
+    },
+  });
 }
 
 function ports(options: {
@@ -301,26 +315,136 @@ describe('judge application', () => {
     expect(appPorts.executeMock).toHaveBeenCalledTimes(2);
   });
 
-  it('returns internal_error for custom checkers until registry support is implemented', async () => {
+  it('returns accepted JudgeResult for custom checker success', async () => {
+    const tokenChecker = vi.fn<CheckerFunction>(async ({ execution }) => (
+      execution.stdout === 'custom-ok\n'
+        ? { status: 'accepted' }
+        : { status: 'wrong_answer' }
+    ));
+
     const result = await judge(
-      request({
-        problem: {
-          ...request().problem,
-          checker: {
-            kind: 'custom',
-            checkerId: 'token',
-          },
-        },
+      customCheckerRequest('token'),
+      ports({
+        executions: [executionSuccess('custom-ok\n')],
+        checker: createCheckerRunner({ token: tokenChecker }),
       }),
-      ports({ executions: [executionSuccess('ok\n')] }),
+    );
+
+    expect(result.phase).toBe('finished');
+    if (result.phase !== 'finished') throw new Error('expected finished result');
+    expect(result.ok).toBe(true);
+    expect(result.tests[0]).toMatchObject({
+      status: 'accepted',
+      stdout: 'custom-ok\n',
+    });
+    expect(result.summary.status).toBe('accepted');
+    expect(tokenChecker).toHaveBeenCalledTimes(1);
+    expect(tokenChecker.mock.calls[0]?.[0]).toMatchObject({
+      testCase: { id: 't1' },
+      execution: { success: true, stdout: 'custom-ok\n' },
+    });
+  });
+
+  it('propagates custom checker wrong_answer messages into JudgeTestResult', async () => {
+    const result = await judge(
+      customCheckerRequest('token'),
+      ports({
+        executions: [executionSuccess('bad\n')],
+        checker: createCheckerRunner({
+          token: async () => ({
+            status: 'wrong_answer',
+            message: 'token mismatch',
+          }),
+        }),
+      }),
+    );
+
+    expect(result.phase).toBe('finished');
+    if (result.phase !== 'finished') throw new Error('expected finished result');
+    expect(result.ok).toBe(false);
+    expect(result.tests[0]).toMatchObject({
+      status: 'wrong_answer',
+      message: 'token mismatch',
+    });
+    expect(result.summary.status).toBe('wrong_answer');
+  });
+
+  it('propagates custom checker internal_error outcomes into summary', async () => {
+    const result = await judge(
+      customCheckerRequest('token'),
+      ports({
+        executions: [executionSuccess('ok\n')],
+        checker: createCheckerRunner({
+          token: async () => ({
+            status: 'internal_error',
+            message: 'checker failed',
+          }),
+        }),
+      }),
     );
 
     expect(result.phase).toBe('finished');
     if (result.phase !== 'finished') throw new Error('expected finished result');
     expect(result.tests[0]).toMatchObject({
       status: 'internal_error',
-      message: 'custom checker is not implemented yet: token',
+      message: 'checker failed',
     });
+    expect(result.summary.status).toBe('internal_error');
+  });
+
+  it('returns internal_error when custom checker id is not registered', async () => {
+    const result = await judge(
+      customCheckerRequest('missing'),
+      ports({
+        executions: [executionSuccess('ok\n')],
+        checker: createCheckerRunner({}),
+      }),
+    );
+
+    expect(result.phase).toBe('finished');
+    if (result.phase !== 'finished') throw new Error('expected finished result');
+    expect(result.tests[0]).toMatchObject({
+      status: 'internal_error',
+      message: 'custom checker is not registered: missing',
+    });
+  });
+
+  it.each([
+    ['throw', () => {
+      throw new Error('checker exploded');
+    }],
+    ['reject', async () => {
+      throw new Error('checker rejected');
+    }],
+  ] satisfies Array<[string, CheckerFunction]>)('normalizes custom checker %s to internal_error', async (_caseName, checker) => {
+    const result = await judge(
+      customCheckerRequest('token'),
+      ports({
+        executions: [executionSuccess('ok\n')],
+        checker: createCheckerRunner({ token: checker }),
+      }),
+    );
+
+    expect(result.phase).toBe('finished');
+    if (result.phase !== 'finished') throw new Error('expected finished result');
+    expect(result.tests[0]?.status).toBe('internal_error');
+    expect(result.tests[0]?.message).toContain('checker');
+  });
+
+  it('does not call custom checker when execution fails', async () => {
+    const tokenChecker = vi.fn<CheckerFunction>(async () => ({ status: 'accepted' }));
+    const result = await judge(
+      customCheckerRequest('token'),
+      ports({
+        executions: [executionFailure('runtime_error')],
+        checker: createCheckerRunner({ token: tokenChecker }),
+      }),
+    );
+
+    expect(result.phase).toBe('finished');
+    if (result.phase !== 'finished') throw new Error('expected finished result');
+    expect(result.tests[0]?.status).toBe('runtime_error');
+    expect(tokenChecker).not.toHaveBeenCalled();
   });
 
   it('handles empty test lists as accepted with an empty result set', async () => {

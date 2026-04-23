@@ -33,4 +33,6 @@ export type { RuntimeHealthPort } from './ports/RuntimeHealthPort.js';
 // Application
 export { judge } from './application/judge.js';
 export { runExactChecker } from './application/exactChecker.js';
+export { createCheckerRunner } from './application/createCheckerRunner.js';
+export type { CheckerRegistry } from './application/createCheckerRunner.js';
 export type { JudgeApplicationPorts } from './application/judge.js';

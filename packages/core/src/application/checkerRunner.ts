@@ -16,11 +16,7 @@ export async function runChecker(
       return runExactChecker(spec, { testCase, execution });
     }
 
-    void ports.checker;
-    return {
-      status: 'internal_error',
-      message: `custom checker is not implemented yet: ${spec.checkerId}`,
-    };
+    return await ports.checker.run(spec, { testCase, execution });
   } catch (error) {
     return {
       status: 'internal_error',
